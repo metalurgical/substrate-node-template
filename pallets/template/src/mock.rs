@@ -1,6 +1,7 @@
 use crate as pallet_template;
-use frame_support::traits::{ConstU16, ConstU64};
+use frame_support::traits::{ConstU16, ConstU64, PalletInfo};
 use frame_system as system;
+use frame_system::Origin;
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
@@ -26,7 +27,6 @@ impl system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
 	type BlockWeights = ();
 	type BlockLength = ();
-	type DbWeight = ();
 	type Origin = Origin;
 	type Call = Call;
 	type Index = u64;
@@ -38,6 +38,7 @@ impl system::Config for Test {
 	type Header = Header;
 	type Event = Event;
 	type BlockHashCount = ConstU64<250>;
+	type DbWeight = ();
 	type Version = ();
 	type PalletInfo = PalletInfo;
 	type AccountData = ();
