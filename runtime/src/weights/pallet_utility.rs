@@ -44,19 +44,19 @@ use sp_std::marker::PhantomData;
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> pallet_utility::WeightInfo for WeightInfo<T> {
 	fn batch(c: u32, ) -> Weight {
-		(10_441_000 as Weight)
+		(10_441_000_u64)
 			// Standard Error: 1_000
-			.saturating_add((3_746_000 as Weight).saturating_mul(c as Weight))
+			.saturating_add((3_746_000_u64).saturating_mul(c as Weight))
 	}
 	fn as_derivative() -> Weight {
-		(2_756_000 as Weight)
+		(2_756_000_u64)
 	}
 	fn batch_all(c: u32, ) -> Weight {
-		(12_024_000 as Weight)
+		(12_024_000_u64)
 			// Standard Error: 1_000
-			.saturating_add((4_105_000 as Weight).saturating_mul(c as Weight))
+			.saturating_add((4_105_000_u64).saturating_mul(c as Weight))
 	}
 	fn dispatch_as() -> Weight {
-		(9_082_000 as Weight)
+		(9_082_000_u64)
 	}
 }

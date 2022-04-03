@@ -7,18 +7,16 @@
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 use codec::Decode;
+use pallet_contracts::weights::WeightInfo;
 use pallet_grandpa::{
 	fg_primitives, AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList,
 };
 use sp_api::impl_runtime_apis;
 use sp_runtime::curve::PiecewiseLinear;
-use pallet_contracts::weights::WeightInfo;
 
 use pallet_election_provider_multi_phase::SolutionAccuracyOf;
-use sp_core::{
-	crypto::KeyTypeId, OpaqueMetadata
-};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
+use sp_core::{crypto::KeyTypeId, OpaqueMetadata};
 
 /// The BABE epoch configuration at genesis.
 pub const BABE_GENESIS_EPOCH_CONFIG: babe_primitives::BabeEpochConfiguration =
@@ -26,14 +24,17 @@ pub const BABE_GENESIS_EPOCH_CONFIG: babe_primitives::BabeEpochConfiguration =
 		c: PRIMARY_PROBABILITY,
 		allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryVRFSlots,
 	};
-	
+
+use pallet_session::historical as session_historical;
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	traits::{AccountIdLookup, BlakeTwo256, Block as BlockT, IdentifyAccount, NumberFor, Verify, OpaqueKeys, Convert},
-	transaction_validity::{TransactionSource, TransactionValidity, TransactionPriority},
+	traits::{
+		AccountIdLookup, BlakeTwo256, Block as BlockT, Convert, IdentifyAccount, NumberFor,
+		OpaqueKeys, Verify,
+	},
+	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult, MultiSignature,
 };
-use pallet_session::historical as session_historical;
 use sp_std::prelude::*;
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
@@ -41,26 +42,30 @@ use sp_version::RuntimeVersion;
 
 // A few exports that help ease life for downstream crates.
 pub use frame_support::{
-	construct_runtime, parameter_types,
+	construct_runtime,
 	pallet_prelude::Get,
-	traits::{ConstU128, ConstU16, ConstU32, ConstU8, KeyOwnerProofSystem, Randomness, StorageInfo, EnsureOneOf, U128CurrencyToVote},
+	parameter_types,
+	traits::{
+		ConstU128, ConstU16, ConstU32, ConstU8, EnsureOneOf, KeyOwnerProofSystem, Randomness,
+		StorageInfo, U128CurrencyToVote,
+	},
 	weights::{
 		constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, WEIGHT_PER_SECOND},
-		IdentityFee, Weight, DispatchClass
+		DispatchClass, IdentityFee, Weight,
 	},
 	StorageValue,
 };
 
-use frame_system::{EnsureRoot};
 use frame_election_provider_support::{onchain, ExtendedBalance};
+use frame_system::EnsureRoot;
 pub use pallet_balances::Call as BalancesCall;
 pub use pallet_timestamp::Call as TimestampCall;
 use pallet_transaction_payment::CurrencyAdapter;
-pub use sp_runtime::{Perbill, Permill, PerThing};
+pub use sp_runtime::{PerThing, Perbill, Permill};
 
-use sp_staking::SessionIndex;
 #[cfg(feature = "std")]
 pub use pallet_staking::StakerStatus;
+use sp_staking::SessionIndex;
 
 /// Import the template pallet.
 pub use pallet_template;
@@ -87,9 +92,9 @@ pub type Hash = sp_core::H256;
 /// Type used for expressing timestamp.
 pub type Moment = u64;
 
+mod bag_thresholds;
 /// Weights for pallets used in the runtime.
 mod weights;
-mod bag_thresholds;
 
 /// Opaque types. These are used by the CLI to instantiate machinery that don't need to know
 /// the specifics of the runtime. They can then be made to be agnostic over specific formats
@@ -122,7 +127,7 @@ const CONTRACTS_DEBUG_OUTPUT: bool = true;
 
 /// Money matters.
 pub const MILLICENTS: Balance = 1_000_000_000;
-pub const CENTS: Balance = 1_000 * MILLICENTS;    // assume this is worth about a cent.
+pub const CENTS: Balance = 1_000 * MILLICENTS; // assume this is worth about a cent.
 pub const DOLLARS: Balance = 100 * CENTS;
 
 /// We assume that ~10% of the block weight is consumed by `on_initialize` handlers.
@@ -133,7 +138,7 @@ const MAXIMUM_BLOCK_WEIGHT: Weight = 2 * WEIGHT_PER_SECOND;
 
 // contracts
 const fn deposit(items: u32, bytes: u32) -> Balance {
-    items as Balance * 15 * CENTS + (bytes as Balance) * 6 * CENTS
+	items as Balance * 15 * CENTS + (bytes as Balance) * 6 * CENTS
 }
 
 /// Struct that handles the conversion of Balance -> `u64`. This is used for staking's election
@@ -141,15 +146,21 @@ const fn deposit(items: u32, bytes: u32) -> Balance {
 pub struct CurrencyToVoteHandler;
 
 impl CurrencyToVoteHandler {
-	fn factor() -> Balance { (Balances::total_issuance() / u64::max_value() as Balance).max(1) }
+	fn factor() -> Balance {
+		(Balances::total_issuance() / u64::max_value() as Balance).max(1)
+	}
 }
 
 impl Convert<Balance, u64> for CurrencyToVoteHandler {
-	fn convert(x: Balance) -> u64 { (x / Self::factor()) as u64 }
+	fn convert(x: Balance) -> u64 {
+		(x / Self::factor()) as u64
+	}
 }
 
 impl Convert<u128, Balance> for CurrencyToVoteHandler {
-	fn convert(x: u128) -> Balance { x * Self::factor() }
+	fn convert(x: u128) -> Balance {
+		x * Self::factor()
+	}
 }
 
 // To learn more about runtime versioning and what each of the following value means:
@@ -209,7 +220,6 @@ parameter_types! {
 		.avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
 		.build_or_panic();
 }
-
 
 // Configure BABE
 pub const MILLISECS_PER_BLOCK: u64 = 6000;
@@ -441,7 +451,8 @@ parameter_types! {
 	pub const MaxNominations: u32 = <NposSolution16 as sp_npos_elections::NposSolution>::LIMIT as u32;
 }
 
-impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime where
+impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
+where
 	Call: From<C>,
 {
 	type Extrinsic = UncheckedExtrinsic;
@@ -450,8 +461,7 @@ impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime where
 
 type SlashCancelOrigin = EnsureRoot<AccountId>;
 
-pub type GenesisElectionOf<T> =
-	onchain::OnChainSequentialPhragmen<T>;
+pub type GenesisElectionOf<T> = onchain::OnChainSequentialPhragmen<T>;
 
 pub struct StakingBenchmarkingConfig;
 impl pallet_staking::BenchmarkingConfig for StakingBenchmarkingConfig {
@@ -547,9 +557,9 @@ parameter_types! {
 	pub const UnsignedPhase: u32 = EPOCH_DURATION_IN_BLOCKS / 4;
 
 	// signed config
-	pub const SignedRewardBase: Balance = 1 * DOLLARS;
-	pub const SignedDepositBase: Balance = 1 * DOLLARS;
-	pub const SignedDepositByte: Balance = 1 * CENTS;
+	pub const SignedRewardBase: Balance = DOLLARS;
+	pub const SignedDepositBase: Balance = DOLLARS;
+	pub const SignedDepositByte: Balance = CENTS;
 
 	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational(1u32, 10_000);
 
@@ -604,7 +614,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type RewardHandler = (); // nothing to do upon rewards
 	type DataProvider = Staking;
 	type Solution = NposSolution16;
-	type Fallback = pallet_election_provider_multi_phase::NoFallback<Self>;
+	type Fallback = onchain::OnChainSequentialPhragmen<Self>;
 	type GovernanceFallback = onchain::OnChainSequentialPhragmen<Self>;
 	type Solver = frame_election_provider_support::SequentialPhragmen<
 		AccountId,
@@ -647,10 +657,10 @@ parameter_types! {
 		RuntimeBlockWeights::get().max_block;
 		pub const DepositPerItem: Balance = deposit(1, 0);
 	pub const DepositPerByte: Balance = deposit(0, 1);
-    pub DeletionQueueDepth: u32 = ((DeletionWeightLimit::get() / (
-        <Runtime as pallet_contracts::Config>::WeightInfo::on_initialize_per_queue_item(1) -
-        <Runtime as pallet_contracts::Config>::WeightInfo::on_initialize_per_queue_item(0)
-        )) / 5) as u32;
+	pub DeletionQueueDepth: u32 = ((DeletionWeightLimit::get() / (
+		<Runtime as pallet_contracts::Config>::WeightInfo::on_initialize_per_queue_item(1) -
+		<Runtime as pallet_contracts::Config>::WeightInfo::on_initialize_per_queue_item(0)
+		)) / 5) as u32;
 	pub Schedule: pallet_contracts::Schedule<Runtime> = {
 		let mut schedule = pallet_contracts::Schedule::<Runtime>::default();
 		// We decided to **temporarily* increase the default allowed contract size here
@@ -666,10 +676,10 @@ parameter_types! {
 }
 
 impl pallet_contracts::Config for Runtime {
-    type Time = Timestamp;
-    type Randomness = RandomnessCollectiveFlip;
-    type Currency = Balances;
-    type Event = Event;
+	type Time = Timestamp;
+	type Randomness = RandomnessCollectiveFlip;
+	type Currency = Balances;
+	type Event = Event;
 	type Call = Call;
 	/// The safest default is to allow no calls at all.
 	///
@@ -701,7 +711,7 @@ impl Get<Option<(usize, ExtendedBalance)>> for OffchainRandomBalancing {
 		use sp_runtime::traits::TrailingZeroInput;
 		let iters = match MINER_MAX_ITERATIONS {
 			0 => 0,
-			max @ _ => {
+			max=> {
 				let seed = sp_io::offchain::random_seed();
 				let random = <u32>::decode(&mut TrailingZeroInput::new(&seed))
 					.expect("input is padded with zeroes; qed") %
@@ -726,6 +736,7 @@ construct_runtime!(
 		Timestamp: pallet_timestamp,
 		Babe: pallet_babe,
 		Grandpa: pallet_grandpa,
+		Authorship: pallet_authorship,
 		Balances: pallet_balances,
 		TransactionPayment: pallet_transaction_payment,
 		Sudo: pallet_sudo,

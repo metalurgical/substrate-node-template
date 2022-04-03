@@ -2,16 +2,16 @@
 
 use node_template_runtime::{self, opaque::Block, RuntimeApi};
 use sc_client_api::{BlockBackend, ExecutorProvider};
+use sc_consensus_babe::{self, SlotProportion};
 pub use sc_executor::NativeElseWasmExecutor;
+use sc_finality_grandpa::SharedVoterState;
 use sc_keystore::LocalKeystore;
 use sc_service::{error::Error as ServiceError, Configuration, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
-use sc_consensus_babe::{self, SlotProportion};
 use std::{sync::Arc, time::Duration};
-use sc_finality_grandpa::{SharedVoterState};
 
 type FullGrandpaBlockImport =
-sc_finality_grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>;
+	sc_finality_grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>;
 
 // Our native executor instance.
 pub struct ExecutorDispatch;
@@ -38,6 +38,7 @@ type FullClient =
 type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 
+#[allow(clippy::type_complexity)]
 pub fn new_partial(
 	config: &Configuration,
 ) -> Result<
@@ -80,7 +81,7 @@ pub fn new_partial(
 
 	let (client, backend, keystore_container, task_manager) =
 		sc_service::new_full_parts::<Block, RuntimeApi, _>(
-			&config,
+			config,
 			telemetry.as_ref().map(|(_, telemetry)| telemetry.handle()),
 			executor,
 		)?;
@@ -203,7 +204,7 @@ pub fn new_partial(
 	})
 }
 
-fn remote_keystore(_url: &String) -> Result<Arc<LocalKeystore>, &'static str> {
+fn remote_keystore(_url: &str) -> Result<Arc<LocalKeystore>, &'static str> {
 	// FIXME: here would the concrete keystore be built,
 	//        must return a concrete type (NOT `LocalKeystore`) that
 	//        implements `CryptoStore` and `SyncCryptoStore`
@@ -310,7 +311,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 
 		let can_author_with =
 			sp_consensus::CanAuthorWithNativeVersion::new(client.executor().clone());
-		
+
 		let client_clone = client.clone();
 		let slot_duration = babe_link.config().slot_duration();
 
@@ -320,7 +321,7 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 
 		let babe_config = sc_consensus_babe::BabeParams {
 			keystore: keystore.clone(),
-			client: client.clone(),
+			client,
 			select_chain,
 			env: proposer_factory,
 			block_import,
@@ -359,8 +360,10 @@ pub fn new_full(mut config: Configuration) -> Result<TaskManager, ServiceError> 
 
 		// the BABE proposer task is considered essential, i.e. if it
 		// fails we take down the service with it.
-		
-		task_manager.spawn_essential_handle().spawn_blocking("babe-proposer", None, babe);
+
+		task_manager
+			.spawn_essential_handle()
+			.spawn_blocking("babe-proposer", None, babe);
 	}
 
 	// if the node isn't actively participating in consensus then it doesn't
